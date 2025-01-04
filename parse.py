@@ -1,29 +1,36 @@
-from langchain_ollama import OllamaLLM
-from langchain_core.prompts import ChatPromptTemplate
+import os
+import google.generativeai as genai
+from dotenv import load_dotenv
 
-template = (
-    "You are tasked with extracting specific information from the following text content: {dom_content}. "
-    "Please follow these instructions carefully: \n\n"
-    "1. **Extract Information:** Only extract the information that directly matches the provided description: {parse_description}. "
-    "2. **No Extra Content:** Do not include any additional text, comments, or explanations in your response. "
-    "3. **Empty Response:** If no information matches the description, return an empty string ('')."
-    "4. **Direct Data Only:** Your output should contain only the data that is explicitly requested, with no other text."
-)
+# Load environment variables
+load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY")
 
-model = OllamaLLM(model="llama3")
+# Configure Google Generative AI with the API key
+genai.configure(api_key=API_KEY)
 
-
-def parse_with_ollama(dom_chunks, parse_description):
-    prompt = ChatPromptTemplate.from_template(template)
-    chain = prompt | model
-
+def parse_with_gemini(dom_chunks, parse_description):
+    """Parse content with Gemini model."""
     parsed_results = []
+    try:
+        # Initialize the model
+        model = genai.GenerativeModel(model_name="gemini-1.5-flash-latest")
 
-    for i, chunk in enumerate(dom_chunks, start=1):
-        response = chain.invoke(
-            {"dom_content": chunk, "parse_description": parse_description}
-        )
-        print(f"Parsed batch: {i} of {len(dom_chunks)}")
-        parsed_results.append(response)
+        # Process each chunk with the user's parse description
+        for i, chunk in enumerate(dom_chunks, start=1):
+            prompt = f"{parse_description}\n\nContent:\n{chunk}"
 
+            # Generate the response
+            response = model.generate_content(prompt)
+            
+            # Collect and append the result
+            result = response.text if response else ""
+            parsed_results.append(result)
+            print(f"Parsed batch {i} of {len(dom_chunks)}")
+
+    except Exception as e:
+        print(f"An error occurred during Gemini parsing: {str(e)}")
+        parsed_results.append(f"Error: {str(e)}")
+
+    # Join all parsed results into a single string for display
     return "\n".join(parsed_results)
